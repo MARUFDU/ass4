@@ -1,0 +1,90 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from itertools import combinations
+
+# Objective function: Z = 2x1 + x2
+def objective(x1, x2):
+    return 2 * x1 + x2
+
+# Define constraints in Ax <= b form
+constraints = [
+    (np.array([1, 2]), 10),     # x1 + 2x2 <= 10
+    (np.array([1, 1]), 6),      # x1 + x2 <= 6
+    (np.array([1, -1]), 2),     # x1 - x2 <= 2
+    (np.array([1, -2]), 1),     # x1 - 2x2 <= 1
+    (np.array([1, 0]), 1000),   # x1 >= 0 (actually x1 <= 1000 to be treated as bounded)
+    (np.array([0, 1]), 1000),   # x2 >= 0
+]
+
+# Function to find intersection of two lines
+def find_intersection(A1, b1, A2, b2):
+    A = np.vstack([A1, A2])
+    b = np.array([b1, b2])
+    try:
+        x = np.linalg.solve(A, b)
+        return x if np.all(x >= -1e-5) else None  # small tolerance for floating point
+    except np.linalg.LinAlgError:
+        return None
+
+# Generate all intersections
+intersections = []
+for (a1, b1), (a2, b2) in combinations(constraints, 2):
+    point = find_intersection(a1, b1, a2, b2)
+    if point is not None:
+        if all(np.dot(a, point) <= b + 1e-5 for a, b in constraints):  # check feasibility
+            intersections.append(point)
+
+# Remove duplicates and keep only feasible
+feasible_points = []
+for pt in intersections:
+    if list(pt) not in feasible_points:
+        feasible_points.append(list(pt))
+
+# Evaluate Z at each feasible point
+Z_vals = [objective(x[0], x[1]) for x in feasible_points]
+optimal_index = np.argmax(Z_vals)
+optimal_point = feasible_points[optimal_index]
+max_Z = Z_vals[optimal_index]
+
+# Plotting
+plt.figure(figsize=(10, 8))
+
+x = np.linspace(0, 10, 400)
+# Plot each constraint
+for a, b in constraints[:-2]:
+    if a[1] != 0:
+        x2 = (b - a[0]*x) / a[1]
+        plt.plot(x, x2, label=f'{a[0]}x1 + {a[1]}x2 ≤ {b}')
+    else:
+        x1 = b / a[0]
+        plt.axvline(x1, linestyle='--')
+
+plt.axhline(0, color='black', linestyle='--', label=r'$x_2 \geq 0$')
+plt.axvline(0, color='black', linestyle='--', label=r'$x_1 \geq 0$')
+
+# Plot feasible region
+if len(feasible_points) > 0:
+    pts = np.array(feasible_points)
+    hull_order = sorted(pts, key=lambda p: np.arctan2(p[1] - pts[:,1].mean(), p[0] - pts[:,0].mean()))
+    plt.fill(pts[:,0], pts[:,1], color='lightgray', alpha=0.4, label='Feasible Region')
+
+# Annotate all points
+for pt, z in zip(feasible_points, Z_vals):
+    plt.scatter(pt[0], pt[1], color='blue')
+    plt.annotate(f"({pt[0]:.1f},{pt[1]:.1f})\nZ={z:.1f}", (pt[0]+0.1, pt[1]+0.1), fontsize=9)
+
+# Highlight optimal point
+plt.scatter(optimal_point[0], optimal_point[1], color='red', s=100, label=f'Optimal: Z={max_Z:.2f}')
+
+# Plot formatting
+plt.title("Alternative LP Graphical Solver")
+plt.xlabel(r'$x_1$')
+plt.ylabel(r'$x_2$')
+plt.xlim(0, 7)
+plt.ylim(0, 6)
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Print optimal
+print(f"Optimal Point: x1 = {optimal_point[0]:.2f}, x2 = {optimal_point[1]:.2f}, Z = {max_Z:.2f}")
